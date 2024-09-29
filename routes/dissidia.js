@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { PrismaClient } from '@prisma/client';
+import fs from 'fs'; //this lets me update old image files
 
 const router = express.Router();
 
@@ -89,9 +90,63 @@ router.get('/get/:id', async (req, res) => {
     res.json(dissidia);
   });
 
-  router.put('/update/:id', upload.single('image'), (req, res) => {
-    const id = req.params.id;
+  router.put('/update/:id', upload.single('image'), async(req, res) => {
+    const id = parseInt(req.params.id);
+    const {Name, Series, Role, Deity, Description} = req.body;
 
+    if(!Name || !Series ||!Role ||!Deity ) {
+      // to-do:delete uploaded file. returns 400
+      return res.status(400).json({message: 'Required fields must have a value.'});
+    }
+    //validating the req. fields
+
+    const dissidia = await prisma.dissidia.findUnique({
+      where: {
+        id: id
+      },
+    });
+
+    // character is not found, return 404 
+  if (!dissidia) {
+    return res.status(404).json({ message: 'Character not found' });
+  }
+  let filename = dissidia.filename;
+
+  if (req.file) {
+    filename = req.file.filename;
+
+    const oldPath ='public/images/' +dissidia.filename;
+
+    if (dissidia.filename && fs.existsSync(oldPath)){
+      fs.unlink(oldPath, (err) => {
+        if (err) {
+          console.error("failed to delete Old Image", err);
+        }
+      });
+    }
+  }
+
+  //update record
+  const updateChar = await prisma.dissidia.update({
+    where: {id: id},
+    data: {
+      Name: Name,
+      Series: Series,
+      ROle: Role,
+      Deity: Deity,
+      Description: Description,
+      filename: filename,
+    },
+  });
+
+  //resp. w success message
+  return res.status(200).json({
+    message: "Character updated successfully",
+    characxter: updateChar,
+  });
+
+});
+  
     // capture the remaining inputs
 
   // validate the inputs
@@ -103,11 +158,49 @@ router.get('/get/:id', async (req, res) => {
 
   // update record in the database (ensuring filename is new or old name)
 
-    res.send('Update by id ' + id);
-});
+ 
 
-router.delete('/delete/:id', (req, res) => {
-  const id = req.params.id;
+
+// DELETE route to remove char by ID
+router.delete('/delete/:id', async (req, res) => {
+  const id = parseInt(req.params.id);
+
+  // Validate  ID is a number
+  if (isNaN(id)) {
+    return res.status(400).json({ message: 'Invalid character id' });
+  }
+
+  // Find character by ID 
+  const dissidia = await prisma.dissidia.findUnique({
+    where: { id: id }
+  });
+
+  // If character not found, return 404
+  if (!dissidia) {
+    return res.status(404).json({ message: 'Character not found' });
+  }
+
+  // Path to i8mg file
+  const imagePath = 'public/images/' + dissidia.filename;
+
+  // Checks if character has associated image &if  file exists
+  if (dissidia.filename && fs.existsSync(imagePath)) {
+    // Attempt to delete the image file
+    fs.unlink(imagePath, (err) => {
+      if (err) {
+        console.error('Failed to delete image:', err);
+      }
+    });
+  }
+
+  //this will delete the character
+  await prisma.dissidia.delete({
+    where: { id: id }
+  });
+
+  // Respond w/ success message
+  return res.status(200).json({ message: 'Character deleted successfully' });
+});
 
   // validate the input
 
@@ -117,8 +210,7 @@ router.delete('/delete/:id', (req, res) => {
 
   // delete the contact in database
 
-  res.send('Delete by id ' + id);
-});
+ 
 
   //testing github classroom
 export default router;

@@ -10,13 +10,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Characters {
+model dissidia {
   id          Int @id @default(autoincrement())
   Name        String
   Series      String
   Role        String
   Deity       String
-  Description String
-  fileName    String
+  Description String?
+  filename    String?
   createdAt   DateTime @default(now())
 }
